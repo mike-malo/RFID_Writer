@@ -1,6 +1,8 @@
 # coding=utf-8
+import asyncio
 import json
 import sys
+import threading
 import time
 from socket import *
 import ctypes
@@ -9,7 +11,7 @@ import re
 import datetime
 
 Objdll = ctypes.windll.LoadLibrary("SWHidApi.dll")
-# Objdll = cdll.LoadLibrary("./libSWHidApi.so")
+# Objdll = ctypes.cdll.LoadLibrary("libSWHidApi.so")
 # print(Objdll)
 
 iUsbNum = int(0)
@@ -28,14 +30,11 @@ try:
     HOST = sys.argv[2]
 except:
     HOST = '10.0.0.226'
-    print("未设置通讯地址，正在使用默认地址")
-
+    print("错误：未设置通讯地址，正在使用默认地址", HOST)
 
 PORT = 8003
 BUF_SIZE = 1024
 ADDR = (HOST, PORT)
-
-
 
 tcpCliSock = socket(AF_INET, SOCK_STREAM)
 tcpCliSock.connect(ADDR)
@@ -56,8 +55,8 @@ def doConnect():
         mid = sys.argv[1]
         print("当前登录设备：", mid)
     except:
-        print("错误:没有设备参数，联系管理员")
-        mid = 1
+        mid = 17
+        print("错误:没有设备参数，联系管理员，当前使用设备号：", mid)
 
     # 发送设备编号
     dic = {'task': "terminal_rfid", 'mid': mid}
@@ -101,44 +100,64 @@ def write_hex(data):
 
 doConnect()
 
-# 循环接收服务器信息
-while True:
-    # if not data1:
-    #     break
-    # data1 = input('>')
 
-    try:
-        data1 = tcpCliSock.recv(BUF_SIZE)  # 接收
-        recv_data = data1.decode('utf-8', errors='ignore')  # 解码
-        recv_data = recv_data[1:]  # 去掉前缀
-        recv_data = json.loads(recv_data)  # 转换成JSON格式
+def test():
+    while True:
+        test_str = "aaaaaaaaaaaaaaaaaaaaaaaa"
+        test_message = json.dumps(test_str)
+        tcpCliSock.sendall(test_message.encode('utf-8'))
+        time.sleep(15)
 
-        # print(recv_data)
 
-        if recv_data['success']:
-            if len(recv_data['hex']) == 24 and is_hex_string(recv_data['hex']):
-                write_data = recv_data['hex'].upper()
-                write_hex(write_data)
-            else:
-                print("接收数据有误")
+def socket():
+    # 循环接收服务器信息
+    global tcpCliSock
+    global write_data
+    while True:
+        # if not data1:
+        #     break
+        # data1 = input('>')
 
-    except error:
-        pass
         try:
-            tcpCliSock = socket(AF_INET, SOCK_STREAM)
-            tcpCliSock.connect(ADDR)
-            doConnect()
+            data1 = tcpCliSock.recv(BUF_SIZE)  # 接收
+            recv_data = data1.decode('utf-8', errors='ignore')  # 解码
+            recv_data = recv_data[1:]  # 去掉前缀
+            recv_data = json.loads(recv_data)  # 转换成JSON格式
+
+            # print(recv_data)
+
+            if recv_data['success']:
+                if len(recv_data['hex']) == 24 and is_hex_string(recv_data['hex']):
+                    write_data = recv_data['hex'].upper()
+                    write_hex(write_data)
+                else:
+                    print("接收数据有误")
+
         except error:
-            print("无法与服务器连接，尝试重连")
-            time.sleep(1)
             pass
-        continue
-        # time.sleep(1)
-        # print("error 1")
-        # while True:
-        #     try:
-        #         doConnect()
-        #     except error:
-        #         time.sleep(1)
-        #         print("error 2")
-        #         pass
+            try:
+                tcpCliSock = socket(AF_INET, SOCK_STREAM)
+                tcpCliSock.connect(ADDR)
+                doConnect()
+            except error:
+                print("无法与服务器连接，尝试重连")
+                time.sleep(1)
+                pass
+            continue
+            # time.sleep(1)
+            # print("error 1")
+            # while True:
+            #     try:
+            #         doConnect()
+            #     except error:
+            #         time.sleep(1)
+            #         print("error 2")
+            #         pass
+
+
+thread1 = threading.Thread(target=socket)
+thread2 = threading.Thread(target=test)
+
+
+thread1.start()
+thread2.start()
